@@ -1,0 +1,5 @@
+{
+  "build": "SP1-2025.11",
+  "device": "S32K311",
+  "dev stage": "beta"
+}

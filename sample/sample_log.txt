@@ -1,0 +1,234 @@
+SEGGER J-Link GDB Server V7.96l - Terminal output channel
+HSE Init 61440
+
+====================
+=== Start Test ===
+=== DRV_FLASH Test ===
+TestResult : Test_Drv_Flash_Write_And_Read_With_in_Page [pass]
+TestResult : Test_Drv_Flash_Write_And_Read [pass]
+TestResult : Test_Drv_Flash_Lock_Unlock [pass]
+TestResult : Test_Drv_Flash_Lock_Unlock_double_unlock_success [pass]
+TestResult : Test_get_sector_address_get_dflash_success [pass]
+TestResult : Test_get_sector_address_get_cflash_0_success [pass]
+TestResult : Test_get_sector_address_get_cflash_1_success [pass]
+TestResult : Test_get_sector_address_get_utest_success [pass]
+TestResult : Test_get_sector_address_invalid_sector_id_success [pass]
+
+-----------------------
+9 Tests 0 Failures 0 Ignored 
+OK
+
+=== INFO Test ===
+TestResult : Test_Info_Success [pass]
+
+-----------------------
+1 Tests 0 Failures 0 Ignored 
+OK
+
+=== GET_HSN Test ===
+TestResult : Test_Get_Hsn_Success [pass]
+
+-----------------------
+1 Tests 0 Failures 0 Ignored 
+OK
+
+=== HSM_CANCEL Test ===
+TestResult : Test_Hsm_Cancel [pass]
+
+-----------------------
+1 Tests 0 Failures 0 Ignored 
+OK
+
+=== STORAGE_KEY Test ===
+TestResult : Test_avo_storage_key_write_success [pass]
+TestResult : Test_avo_storage_key_write_with_offset_success [pass]
+TestResult : Test_avo_storage_key_write_out_of_index_id_fail [pass]
+TestResult : Test_avo_storage_key_write_out_of_key_size_fail [pass]
+
+-----------------------
+4 Tests 0 Failures 0 Ignored 
+OK
+
+=== KEY_META Test ===
+TestResult : Test_avo_key_inject_hmac_success [pass]
+TestResult : Test_avo_key_inject_ed_success [pass]
+TestResult : Test_avo_key_inject_ecc_success [pass]
+
+-----------------------
+3 Tests 0 Failures 0 Ignored 
+OK
+
+=== AVO_HSE_KEY_LOADER Test ===
+TestResult : Test_avo_load_key_from_dflash_to_tmp_hmac [pass]
+TestResult : Test_avo_load_key_from_dflash_to_tmp_ed [pass]
+
+-----------------------
+2 Tests 0 Failures 0 Ignored 
+OK
+
+=== KEY_MNG Test ===
+../test/mng_key/test_avo_mng_key.c:251:TEST(KEY_MNG, Test_Inject_RSA_PSK_KEY):FAIL. Error Code = 84 (0x0054)
+TestResult : Test_Inject_RSA_PSK_KEY [fail]
+
+-----------------------
+1 Tests 1 Failures 0 Ignored 
+FAIL
+
+=== STORAGE_CERT Test ===
+TestResult : Test_save_cert_and_load [pass]
+
+-----------------------
+1 Tests 0 Failures 0 Ignored 
+OK
+
+=== CERT_META Test ===
+TestResult : Test_save_cert_meta_success [pass]
+TestResult : Test_save_cert_meta_update_success [pass]
+
+-----------------------
+2 Tests 0 Failures 0 Ignored 
+OK
+
+=== AVO_CERT_MNG Test ===
+TestResult : Test_avo_cert_import_rsa_success [pass]
+TestResult : Test_avo_cert_import_ed_success [pass]
+TestResult : Test_avo_cert_import_over_1k_success [pass]
+TestResult : Test_avo_cert_export_rsa_success [pass]
+TestResult : Test_avo_cert_export_ed_success [pass]
+TestResult : Test_avo_cert_export_over_1k_success [pass]
+
+-----------------------
+6 Tests 0 Failures 0 Ignored 
+OK
+
+=== RNG Test ===
+TestResult : Test_Trng [pass]
+TestResult : Test_Prng [pass]
+
+-----------------------
+2 Tests 0 Failures 0 Ignored 
+OK
+
+=== CHACHA20 Test ===
+TestResult : Test_Chacha20_enc_dec [pass]
+
+-----------------------
+1 Tests 0 Failures 0 Ignored 
+OK
+
+=== SHA Test ===
+TestResult : Test_SHA160 [pass]
+TestResult : Test_SHA256 [pass]
+TestResult : Test_SHA512 [pass]
+
+-----------------------
+3 Tests 0 Failures 0 Ignored 
+OK
+
+=== RSASSA Test ===
+TestResult : Test_RSASSA_SHA256_SIGN_ANG_VERIY [pass]
+TestResult : Test_RSASSA_SHA160_SIGN_ANG_VERIY [pass]
+
+-----------------------
+2 Tests 0 Failures 0 Ignored 
+OK
+
+=== ECDH Test ===
+
+ECDH Test
+TestResult : Test_ECDH_SECP256R1 [pass]
+
+-----------------------
+1 Tests 0 Failures 0 Ignored 
+OK
+
+=== RSAES Test ===
+TestResult : Test_RSAES_PKCS1_v_1_5 [pass]
+TestResult : Test_RSAES_PKCS1_v_1_5_Decrypt [pass]
+
+-----------------------
+2 Tests 0 Failures 0 Ignored 
+OK
+
+=== AUTH_COMMON Test ===
+TestResult : Test_Gen_HMAC [pass]
+TestResult : Test_Gen_CMAC [pass]
+TestResult : Test_Gen_HKDF [pass]
+TestResult : Test_Gen_HASH [pass]
+
+-----------------------
+4 Tests 0 Failures 0 Ignored 
+OK
+
+=== MUTUAL_AUTH Test ===
+TestResult : Test_Mutual_Auth_With_KAuth [pass]
+
+-----------------------
+1 Tests 0 Failures 0 Ignored 
+OK
+
+=== ONEWAY_AUTH Test ===
+TestResult : Test_Oneway_Auth [pass]
+
+-----------------------
+1 Tests 0 Failures 0 Ignored 
+OK
+
+=== KAUTH_IMPORT Test ===
+TestResult : Test_KAuth_Import [pass]
+
+-----------------------
+1 Tests 0 Failures 0 Ignored 
+OK
+
+=== ASK Test ===
+../test/mng/test_avo_ask.c:59:TEST(ASK, Test_ASK):FAIL: Expected 0 Was -105
+TestResult : Test_ASK [fail]
+
+-----------------------
+1 Tests 1 Failures 0 Ignored 
+FAIL
+
+=== SPI_DISPATCHER Test ===
+TestResult : Test_Info [pass]
+TestResult : Test_Spi_dispactcher_get_state [pass]
+TestResult : Test_dispatch_spi_packet_success [pass]
+
+-----------------------
+3 Tests 0 Failures 0 Ignored 
+OK
+
+=== AVO_INTERFACE Test ===
+TestResult : Test_get_state_success [pass]
+TestResult : Test_set_tx_buffer_data_NULL_ptr [pass]
+TestResult : Test_set_rx_buffer_data_length_zero [pass]
+TestResult : Test_set_rx_buffer_data_NULL_ptr [pass]
+TestResult : Test_set_rx_buffer_data_length_zero [pass]
+TestResult : Test_set_tx_buffer_success [pass]
+TestResult : Test_set_rx_buffer_success [pass]
+TestResult : Test_set_tx_buffer_fail_bad_flag [pass]
+TestResult : Test_set_rx_buffer_fail_bad_flag [pass]
+TestResult : Test_set_clear_cmd_sucees [pass]
+TestResult : Test_set_tx_flag_success [pass]
+TestResult : Test_set_rx_flag_success [pass]
+
+-----------------------
+12 Tests 0 Failures 0 Ignored 
+OK
+
+=== TEST_OP_CODE Test ===
+TestResult : Test_Info [pass]
+TestResult : Test_Get_HSN [pass]
+TestResult : Test_HSM_Cancel [pass]
+TestResult : KEY_MNG_Inject_RSA_Key_pair [pass]
+TestResult : TRNG [pass]
+TestResult : SHA256 [pass]
+
+-----------------------
+6 Tests 0 Failures 0 Ignored 
+OK
+
+=== Total Summary ===
+71 Tests 2 Failures 0 Ignored
+Final Test result : Fail
+====================
