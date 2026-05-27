@@ -5,6 +5,8 @@ import codecs
 from typing import Optional, Dict, List, Any
 
 class VectorExtractor:
+
+    _INLINE_BYTE_HEX_RE = re.compile(r"0x[0-9A-Fa-f]{2}", re.IGNORECASE)
     
     def __init__(self, project_root: str = "."):
         self.project_root = project_root
@@ -113,6 +115,49 @@ class VectorExtractor:
         if not file_vars:
             return None
         return file_vars.get(var_name)
+
+    @classmethod
+    def parse_inline_byte_hex_tokens(cls, value_str: str) -> Optional[List[str]]:
+        """로그 등에서 온 '0x6B 0xC1 ...' 또는 '0x6B, 0xC1' 형태만 허용 (바이트당 정확히 2 hex 자리).
+
+        32비트 한 덩어리(0x000000c9)는 바이트 나열로 보지 않는다.
+        """
+        if not value_str:
+            return None
+        s = value_str.strip()
+        if not s:
+            return None
+        tokens: List[str] = []
+        last_end = 0
+        for m in cls._INLINE_BYTE_HEX_RE.finditer(s):
+            gap = s[last_end : m.start()]
+            if gap and not re.fullmatch(r"[\s,]*", gap):
+                return None
+            raw = m.group(0)
+            tokens.append(f"0x{int(raw, 16):02X}")
+            last_end = m.end()
+        tail = s[last_end:]
+        if tail and not re.fullmatch(r"[\s,]*", tail):
+            return None
+        if len(tokens) < 2:
+            return None
+        return tokens
+
+    def get_formatted_inline_byte_string(
+        self, value_str: str, max_display: int = 16
+    ) -> Optional[str]:
+        """get_formatted_value와 동일한 줄바꿈 규칙으로 인라인 hex 바이트 나열을 포맷한다."""
+        token_list = self.parse_inline_byte_hex_tokens(value_str)
+        if not token_list:
+            return None
+        lines: List[str] = []
+        for i in range(0, len(token_list), max_display):
+            chunk = token_list[i : i + max_display]
+            lines.append(", ".join(chunk))
+        if len(lines) == 1:
+            return lines[0]
+        formatted = "\n".join(lines)
+        return formatted.replace("\n", "<br/>")
     
     def get_formatted_value(self, var_name: str, max_display: int = 16, file_path: Optional[str] = None) -> Optional[str]:
         """Return the formatted string of the variable value

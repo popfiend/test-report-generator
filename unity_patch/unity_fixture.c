@@ -1,7 +1,7 @@
 /* =========================================================================
     Unity - A Test Framework for C
     ThrowTheSwitch.org
-    Copyright (c) 2007-26 Mike Karlesky, Mark VanderVoord, & Greg Williams
+    Copyright (c) 2007-25 Mike Karlesky, Mark VanderVoord, & Greg Williams
     SPDX-License-Identifier: MIT
 ========================================================================= */
 
@@ -10,6 +10,9 @@
 #include <string.h>
 
 struct UNITY_FIXTURE_T UnityFixture;
+
+/* Store the test name without group prefix for output */
+static const char* current_test_name_only = NULL;
 
 /* If you decide to use the function pointer approach.
  * Build with -D UNITY_OUTPUT_CHAR=outputChar and include <stdio.h>
@@ -81,11 +84,13 @@ void UnityTestRunner(unityfunction* setup,
         Unity.TestFile = file;
         Unity.CurrentTestName = printableName;
         Unity.CurrentTestLineNumber = line;
+        current_test_name_only = name;  /* Store test name without group prefix */
         if (UnityFixture.Verbose)
         {
             UnityPrint(printableName);
         #ifndef UNITY_REPEAT_TEST_NAME
-            Unity.CurrentTestName = NULL;
+            /* Keep test name for UnityConcludeFixtureTest even in verbose mode */
+            /* Unity.CurrentTestName = NULL; */
         #endif
         }
         else if (UnityFixture.Silent)
@@ -94,7 +99,7 @@ void UnityTestRunner(unityfunction* setup,
         }
         else
         {
-            UNITY_OUTPUT_CHAR('.');
+            /* Test name will be printed in UnityConcludeFixtureTest */
         }
 
         Unity.NumberOfTests++;
@@ -119,6 +124,7 @@ void UnityTestRunner(unityfunction* setup,
             UnityPointer_UndoAllSets();
         }
         UnityConcludeFixtureTest();
+        current_test_name_only = NULL;
     }
 }
 
@@ -320,10 +326,30 @@ int UnityGetCommandLineOptions(int argc, const char* argv[])
 
 void UnityConcludeFixtureTest(void)
 {
+    const char* test_name_to_print = (current_test_name_only != NULL) ? current_test_name_only : Unity.CurrentTestName;
+    
     if (Unity.CurrentTestIgnored)
     {
         Unity.TestIgnores++;
-        UNITY_PRINT_EOL();
+
+        if (!UnityFixture.Verbose && !UnityFixture.Silent && test_name_to_print != NULL)
+        {
+            UnityPrint(test_name_to_print);
+            UnityPrint(" [ignored]");
+            
+            UNITY_OUTPUT_CHAR('\r');
+            UNITY_PRINT_EOL();
+        }
+        else if (UnityFixture.Verbose)
+        {
+            UNITY_OUTPUT_CHAR('\r');
+            UNITY_PRINT_EOL();
+        }
+        else if (!UnityFixture.Silent)
+        {
+            UNITY_OUTPUT_CHAR('\r');
+            UNITY_PRINT_EOL();
+        }
     }
     else if (!Unity.CurrentTestFailed)
     {
@@ -333,13 +359,40 @@ void UnityConcludeFixtureTest(void)
             UnityPrint(UnityStrPass);
             UNITY_EXEC_TIME_STOP();
             UNITY_PRINT_EXEC_TIME();
+
+            UNITY_OUTPUT_CHAR('\r');
+            UNITY_PRINT_EOL();
+        }
+        else if (!UnityFixture.Silent && test_name_to_print != NULL)
+        {
+            UnityPrint("TestResult : ");
+            UnityPrint(test_name_to_print);
+            UnityPrint(" [pass]");
+
+            UNITY_OUTPUT_CHAR('\r');
             UNITY_PRINT_EOL();
         }
     }
     else /* Unity.CurrentTestFailed */
     {
         Unity.TestFailures++;
-        UNITY_PRINT_EOL();
+        if (!UnityFixture.Verbose && !UnityFixture.Silent && test_name_to_print != NULL)
+        {
+            UNITY_OUTPUT_CHAR('\r');
+            UNITY_PRINT_EOL();
+
+            UnityPrint("TestResult : ");
+            UnityPrint(test_name_to_print);
+            UnityPrint(" [fail]");
+
+            UNITY_OUTPUT_CHAR('\r');
+            UNITY_PRINT_EOL();
+        }
+        else
+        {
+            UNITY_OUTPUT_CHAR('\r');
+            UNITY_PRINT_EOL();
+        }
     }
 
     Unity.CurrentTestFailed = 0;

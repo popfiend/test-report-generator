@@ -1,34 +1,31 @@
 import os
 import hashlib
 import argparse
-from typing import Dict, Tuple, Optional
+from typing import Tuple, Optional
 
 from src.meta_info import load_meta_info
-from src.vector_extractor import VectorExtractor
 from src.unity_test_parser import UnityTestParser
-from src.test_cast_dto import TestCase
-from src.data_parser import DataParser
-from src.log_retsult_processor import LogResultProcessor
+from src.log_retsult_processor import LogResultProcessor, ParsedExecutionLog
 from src.report_generator import ReportGenerator
 
 
-def load_log_results(log_arg: str) -> Tuple[Dict[str, str], Optional[str], Optional[str]]:
+def load_log_results(log_arg: str) -> Tuple[Optional[ParsedExecutionLog], Optional[str], Optional[str]]:
     if not log_arg:
-        return {}, None, None
-    
+        return None, None, None
+
     if os.path.isfile(log_arg):
         try:
-            with open(log_arg, 'rb') as f:
+            with open(log_arg, "rb") as f:
                 raw_bytes = f.read()
-            log_text = raw_bytes.decode('utf-8', errors='ignore')
+            log_text = raw_bytes.decode("utf-8", errors="ignore")
             sha256 = hashlib.sha256(raw_bytes).hexdigest()[56:]
             source_name = os.path.basename(log_arg)
             return LogResultProcessor.parse(log_text), source_name, sha256
         except OSError as e:
             print(f"[!] Log file not found: {e}")
-            return {}, None, None
-    
-    return {}, None, None
+            return None, None, None
+
+    return None, None, None
 
 
 def main():
@@ -53,13 +50,24 @@ def main():
         return
     
     meta_info = load_meta_info(args.meta_json)
-    log_results, log_source_name, log_sha256 = load_log_results(args.log_file)
-    if log_results:
-        applied, unmatched = LogResultProcessor.apply_to_cases(test_cases, log_results)
-        print(f"[+] Applied {applied} log-based results")
-        if unmatched:
-            sample = ', '.join(list(unmatched.keys())[:5])
-            print(f"[!] Not found test results in code: {len(unmatched)} cases: {sample}")
+    parsed_log, log_source_name, log_sha256 = load_log_results(args.log_file)
+    if parsed_log and parsed_log.has_any_data():
+        ra, ru, ga, gu, ea, eu = LogResultProcessor.apply_to_cases(test_cases, parsed_log)
+        if ra:
+            print(f"[+] Applied {ra} log-based pass/fail results")
+        if ru:
+            sample = ", ".join(list(ru.keys())[:5])
+            print(f"[!] Log test names not found in code (pass/fail): {len(ru)} — e.g. {sample}")
+        if ga:
+            print(f"[+] Applied TestLog[GIVEN] to {ga} test case(s) from log")
+        if gu:
+            sample = ", ".join(list(gu.keys())[:5])
+            print(f"[!] TestLog[GIVEN] keys not matched to tests: {len(gu)} — e.g. {sample}")
+        if ea:
+            print(f"[+] Applied TestLog[EXPECTED] to {ea} test case(s) from log")
+        if eu:
+            sample = ", ".join(list(eu.keys())[:5])
+            print(f"[!] TestLog[EXPECTED] keys not matched to tests: {len(eu)} — e.g. {sample}")
     
     print("[*] Generating report...\n")
     generator = ReportGenerator(

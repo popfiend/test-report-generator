@@ -74,11 +74,29 @@ class ReportGenerator:
                 file_info = f" <small style='color: #999;'>[from {html.escape(file_path)}]</small>"
             
             # Get variable value representations
-            tooltip_text = self.vector_extractor.get_formatted_value(val, file_path=file_path)
+            tooltip_from_file = self.vector_extractor.get_formatted_value(val, file_path=file_path)
             literal_value = self.vector_extractor.get_literal_value(val, file_path=file_path)
             scalar_info = self.vector_extractor.get_scalar_value(val, file_path=file_path)
             is_string_var = self.vector_extractor.is_string_variable(val, file_path=file_path)
-            
+
+            inline_formatted = None
+            if not tooltip_from_file and not file_path:
+                inline_formatted = self.vector_extractor.get_formatted_inline_byte_string(val)
+            tooltip_text = tooltip_from_file or inline_formatted
+
+            # 로그 인라인 바이트만 자세히에 넣는 경우: 헤더에 긴 hex 나열은 숨김
+            hide_header_hex_preview = (
+                inline_formatted is not None
+                and not literal_value
+                and not scalar_info
+                and not is_string_var
+            )
+            header_value_code = (
+                ""
+                if hide_header_hex_preview
+                else f'<code style="background-color: #e7f3ff; color: #0066cc;">{val_escaped}</code>'
+            )
+
             if tooltip_text or literal_value or scalar_info:
                 detail_sections = []
                 if literal_value:
@@ -127,7 +145,7 @@ class ReportGenerator:
                     <div class="data-entry-header">
                         <div class="data-entry-info">
                             <strong>{key_html}:</strong>
-                            <code style="background-color: #e7f3ff; color: #0066cc;">{val_escaped}</code>{file_info}
+                            {header_value_code}{file_info}
                         </div>
                         <button type="button" class="data-toggle-btn" data-target="{toggle_id}" aria-expanded="false">자세히</button>
                     </div>
