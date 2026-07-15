@@ -523,13 +523,14 @@ class ReportGenerator:
             background: white; 
             border-radius: 12px; 
             box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-            overflow: hidden;
+            overflow: visible;
         }}
         .header {{ 
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white; 
             padding: 40px; 
             text-align: center;
+            border-radius: 12px 12px 0 0;
         }}
         .header h1 {{ font-size: 32px; margin-bottom: 10px; font-weight: 700; }}
         .header a.log-link {{
@@ -668,6 +669,13 @@ class ReportGenerator:
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+        }}
+        #detail-table thead th {{
+            position: sticky;
+            top: 0;
+            z-index: 30;
+            background: #f8f9fa;
+            box-shadow: 0 1px 0 #dee2e6;
         }}
         th.sortable {{
             cursor: pointer;
@@ -995,6 +1003,53 @@ class ReportGenerator:
             font-size: 12px; 
             border-top: 1px solid #eee;
             background: #f8f9fa;
+            border-radius: 0 0 12px 12px;
+        }}
+        .pagination {{
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 16px;
+            padding-top: 8px;
+        }}
+        .pagination .page-info {{
+            font-size: 12px;
+            color: #555;
+            margin: 0 8px;
+            min-width: 140px;
+            text-align: center;
+        }}
+        .pagination .page-numbers {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            justify-content: center;
+        }}
+        .pagination .page-btn {{
+            border: 1px solid #cfd6ff;
+            background: #fff;
+            color: #4451b8;
+            font-size: 12px;
+            min-width: 32px;
+            height: 32px;
+            padding: 0 10px;
+            border-radius: 8px;
+            cursor: pointer;
+        }}
+        .pagination .page-btn:hover:not(:disabled) {{
+            background: #f0f3ff;
+        }}
+        .pagination .page-btn.active {{
+            background: #667eea;
+            border-color: #667eea;
+            color: #fff;
+            font-weight: 700;
+        }}
+        .pagination .page-btn:disabled {{
+            opacity: 0.45;
+            cursor: default;
         }}
     </style>
 </head>
@@ -1073,15 +1128,24 @@ class ReportGenerator:
                     {table_rows}
                 </tbody>
             </table>
+            <div id="detail-pagination" class="pagination" aria-label="Detail table pagination">
+                <button type="button" class="page-btn" data-page-action="prev">Prev</button>
+                <div class="page-numbers"></div>
+                <button type="button" class="page-btn" data-page-action="next">Next</button>
+                <span class="page-info"></span>
+            </div>
         </div>
         <script>
         (function() {{
+            const PAGE_SIZE = 10;
             const table = document.getElementById('detail-table');
             if (!table) return;
             const tbody = table.querySelector('tbody');
             const headers = table.querySelectorAll('th.sortable');
             const rows = Array.from(tbody.querySelectorAll('tr.test-row'));
+            const pager = document.getElementById('detail-pagination');
             let currentSort = {{ key: 'index', direction: 'asc' }};
+            let currentPage = 1;
             
             function getValue(row, key) {{
                 if (key === 'index') {{
@@ -1094,6 +1158,68 @@ class ReportGenerator:
                     return (row.dataset.group || '').toLowerCase();
                 }}
                 return '';
+            }}
+            
+            function getDetailRow(row) {{
+                const detailId = row.dataset.detailId;
+                return detailId ? document.getElementById(detailId) : null;
+            }}
+            
+            function totalPages() {{
+                return Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+            }}
+            
+            function collapseDetail(detailRow) {{
+                if (!detailRow) return;
+                detailRow.hidden = true;
+                document.querySelectorAll('.row-data-toggle-btn[data-target="' + detailRow.id + '"]').forEach(btn => {{
+                    btn.setAttribute('aria-expanded', 'false');
+                    btn.classList.remove('active');
+                    btn.textContent = 'View';
+                }});
+            }}
+            
+            function renderPage() {{
+                const pages = totalPages();
+                if (currentPage > pages) currentPage = pages;
+                if (currentPage < 1) currentPage = 1;
+                const start = (currentPage - 1) * PAGE_SIZE;
+                const end = start + PAGE_SIZE;
+                
+                rows.forEach((row, index) => {{
+                    const visible = index >= start && index < end;
+                    row.hidden = !visible;
+                    const detailRow = getDetailRow(row);
+                    if (!visible) {{
+                        collapseDetail(detailRow);
+                    }}
+                }});
+                
+                if (!pager) return;
+                const info = pager.querySelector('.page-info');
+                if (info) {{
+                    info.textContent = 'Page ' + currentPage + ' / ' + pages + ' (total ' + rows.length + ')';
+                }}
+                const prevBtn = pager.querySelector('[data-page-action="prev"]');
+                const nextBtn = pager.querySelector('[data-page-action="next"]');
+                if (prevBtn) prevBtn.disabled = currentPage <= 1;
+                if (nextBtn) nextBtn.disabled = currentPage >= pages;
+                
+                const nums = pager.querySelector('.page-numbers');
+                if (nums) {{
+                    nums.innerHTML = '';
+                    for (let page = 1; page <= pages; page++) {{
+                        const button = document.createElement('button');
+                        button.type = 'button';
+                        button.className = 'page-btn' + (page === currentPage ? ' active' : '');
+                        button.textContent = String(page);
+                        button.addEventListener('click', () => {{
+                            currentPage = page;
+                            renderPage();
+                        }});
+                        nums.appendChild(button);
+                    }}
+                }}
             }}
             
             function applySort(key) {{
@@ -1117,22 +1243,21 @@ class ReportGenerator:
                 
                 sorted.forEach(row => {{
                     tbody.appendChild(row);
-                    const detailId = row.dataset.detailId;
-                    if (detailId) {{
-                        const detailRow = document.getElementById(detailId);
-                        if (detailRow) {{
-                            tbody.appendChild(detailRow);
-                        }}
+                    const detailRow = getDetailRow(row);
+                    if (detailRow) {{
+                        tbody.appendChild(detailRow);
                     }}
                 }});
                 rows.splice(0, rows.length, ...sorted);
                 currentSort = {{ key, direction }};
+                currentPage = 1;
                 
                 headers.forEach(header => header.classList.remove('sorted-asc', 'sorted-desc'));
                 const activeHeader = Array.from(headers).find(h => h.dataset.sortKey === key);
                 if (activeHeader) {{
                     activeHeader.classList.add(direction === 'asc' ? 'sorted-asc' : 'sorted-desc');
                 }}
+                renderPage();
             }}
             
             headers.forEach(header => {{
@@ -1143,6 +1268,29 @@ class ReportGenerator:
             if (defaultHeader) {{
                 defaultHeader.classList.add('sorted-asc');
             }}
+            
+            if (pager) {{
+                const prevBtn = pager.querySelector('[data-page-action="prev"]');
+                const nextBtn = pager.querySelector('[data-page-action="next"]');
+                if (prevBtn) {{
+                    prevBtn.addEventListener('click', () => {{
+                        if (currentPage > 1) {{
+                            currentPage -= 1;
+                            renderPage();
+                        }}
+                    }});
+                }}
+                if (nextBtn) {{
+                    nextBtn.addEventListener('click', () => {{
+                        if (currentPage < totalPages()) {{
+                            currentPage += 1;
+                            renderPage();
+                        }}
+                    }});
+                }}
+            }}
+            
+            renderPage();
         }})();
         (function() {{
             function setRowDataExpanded(detailRow, expanded) {{
@@ -1192,7 +1340,7 @@ class ReportGenerator:
         if split_by_group:
             # Index page keeps summary + group stats only (no detail table).
             html_content = re.sub(
-                r'<div class="section">\s*<div class="section-title">📝 상세 테스트 결과</div>[\s\S]*?</table>\s*</div>',
+                r'<div class="section">\s*<div class="section-title">📝 상세 테스트 결과</div>[\s\S]*?(?=\s*<script>)',
                 '',
                 html_content,
                 count=1,
