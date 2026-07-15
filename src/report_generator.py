@@ -1,8 +1,11 @@
 import os
+import re
 import sys
 import html
+import shutil
 from typing import List, Dict, Optional, Union
 from datetime import datetime
+from collections import defaultdict
 from src.test_cast_dto import TestCase
 from src.vector_extractor import VectorExtractor
 from src.data_parser import DataParser
@@ -23,6 +26,7 @@ class ReportGenerator:
         project_root: str = ".",
         log_source_name: Optional[str] = None,
         log_sha256: Optional[str] = None,
+        log_source_path: Optional[str] = None,
         show_git_info: bool = True,
     ):
         self.test_cases = test_cases
@@ -41,9 +45,12 @@ class ReportGenerator:
                 self.meta_label_map[key.lower()] = label
         self.log_source_name = log_source_name
         self.log_sha256 = log_sha256
+        self.log_source_path = log_source_path
         self.report_version = get_report_generator_version()
         self.data_toggle_counter = 0
         self.show_git_info = show_git_info
+        self.generated_group_reports: List[str] = []
+        self.report_bundle_dir: Optional[str] = None
     
     def _format_data_with_tooltips(self, data_str: str) -> str:
         """Format data string into HTML (variable-by-variable newline + actual array value tooltip)
@@ -183,6 +190,15 @@ class ReportGenerator:
     def _is_empty_data(self, data_str: Optional[str]) -> bool:
         return not data_str or data_str.strip() in ('', '-')
 
+    @staticmethod
+    def _sanitize_group_slug(group_name: str) -> str:
+        slug = re.sub(r"[^\w\-]+", "_", group_name or "unknown", flags=re.UNICODE)
+        slug = slug.strip("_")
+        return slug or "unknown"
+
+    def _group_report_filename(self, group_name: str) -> str:
+        return f"test_report_{self._sanitize_group_slug(group_name)}.html"
+
     def _get_meta_label(self, key: str) -> str:
         if not key:
             return ""
@@ -247,10 +263,41 @@ class ReportGenerator:
             'not_run': sum(1 for case in self.test_cases if case.result == "Not Run"),
         }
     
-    def generate_html_report(self, output_file: Optional[str] = None) -> str:
-        """Generate HTML report"""
-        if output_file is None:
-            output_file = f"test_report_{self.timestamp}.html"
+    def generate_html_report(
+        self,
+        output_file: Optional[str] = None,
+        split_by_group: bool = True,
+        nav_html: str = "",
+        hide_group_stats: bool = False,
+        write_dir: Optional[str] = None,
+    ) -> str:
+        """Generate HTML report bundle under output_report/test_report_<timestamp>/."""
+        if split_by_group:
+            self.generated_group_reports = []
+            report_folder_name = f"test_report_{self.timestamp}"
+            bundle_dir = os.path.join(self.output_dir, report_folder_name)
+            os.makedirs(bundle_dir, exist_ok=True)
+            self.report_bundle_dir = bundle_dir
+            write_dir = bundle_dir
+            if output_file is None:
+                output_file = "test_report.html"
+
+            # Copy referenced log into the report folder for offline linking
+            if self.log_source_path and os.path.isfile(self.log_source_path):
+                log_name = self.log_source_name or os.path.basename(self.log_source_path)
+                try:
+                    shutil.copy2(
+                        self.log_source_path,
+                        os.path.join(bundle_dir, log_name),
+                    )
+                    self.log_source_name = log_name
+                except OSError as e:
+                    print(f"[!] Failed to copy log file into report folder: {e}", file=sys.stderr)
+        else:
+            if output_file is None:
+                output_file = f"test_report_{self.timestamp}.html"
+            if write_dir is None:
+                write_dir = self.report_bundle_dir or self.output_dir
         
         stats = self._get_stats()
         
@@ -397,13 +444,24 @@ class ReportGenerator:
                 </tr>
 {detail_row}'''
         
-        # Group by group
+        # Group by group (clickable links to per-group HTML)
+        cases_by_group: Dict[str, List[TestCase]] = defaultdict(list)
+        for case in self.test_cases:
+            cases_by_group[case.group_name or "unknown"].append(case)
+
+        group_file_map = {
+            group_name: self._group_report_filename(group_name)
+            for group_name in sorted(group_stats.keys())
+        }
+
         group_rows = ""
         for group_name, group_data in sorted(group_stats.items()):
             group_pass_rate = (group_data['passed'] / group_data['total'] * 100) if group_data['total'] > 0 else 0
+            group_href = html.escape(group_file_map[group_name], quote=True)
+            group_label = html.escape(group_name)
             group_rows += f'''
                 <tr>
-                    <td><strong>{group_name}</strong></td>
+                    <td><a class="group-link" href="{group_href}">{group_label}</a></td>
                     <td>{group_data['total']}</td>
                     <td><span class="badge badge-success">{group_data['passed']}</span></td>
                     <td><span class="badge badge-danger">{group_data['failed']}</span></td>
@@ -429,7 +487,13 @@ class ReportGenerator:
                 info_lines.append(git_line)
             
         if self.log_source_name:
-            info_lines.append(f"Log [file: {self.log_source_name} | checksum(SHA256): {self.log_sha256}]")
+            log_name = html.escape(self.log_source_name)
+            log_href = html.escape(self.log_source_name, quote=True)
+            checksum = html.escape(str(self.log_sha256 or "N/A"))
+            info_lines.append(
+                f'Log [file: <a class="log-link" href="{log_href}">{log_name}</a>'
+                f' | checksum(SHA256): {checksum}]'
+            )
         
         info_text = "<br/>".join(info_lines)
         version_display = html.escape(self.report_version)
@@ -468,6 +532,14 @@ class ReportGenerator:
             text-align: center;
         }}
         .header h1 {{ font-size: 32px; margin-bottom: 10px; font-weight: 700; }}
+        .header a.log-link {{
+            color: #ffffff;
+            text-decoration: underline;
+            font-weight: 600;
+        }}
+        .header a.log-link:hover {{
+            color: #f0f4ff;
+        }}
         .meta-section {{
             padding: 20px 30px;
             background: #ffffff;
@@ -783,6 +855,32 @@ class ReportGenerator:
         .badge-group {{ background: #e7f3ff; color: #004085; }}
         .badge-success {{ background: #d4edda; color: #155724; }}
         .badge-danger {{ background: #f8d7da; color: #721c24; }}
+        .group-link {{
+            color: #4451b8;
+            text-decoration: none;
+            font-weight: 700;
+        }}
+        .group-link:hover {{
+            text-decoration: underline;
+        }}
+        .group-hint {{
+            padding: 0 0 12px;
+            color: #555;
+            font-size: 13px;
+        }}
+        .nav-back {{
+            padding: 16px 30px 0;
+            font-size: 13px;
+            color: #4451b8;
+        }}
+        .nav-back a {{
+            color: #4451b8;
+            text-decoration: none;
+            font-weight: 600;
+        }}
+        .nav-back a:hover {{
+            text-decoration: underline;
+        }}
         .data-entry {{
             margin-bottom: 8px;
             padding: 10px 12px;
@@ -941,6 +1039,7 @@ class ReportGenerator:
         
         <div class="section">
             <div class="section-title">📊 그룹별 통계</div>
+            <p class="group-hint">그룹명을 클릭하면 해당 그룹의 상세 테스트 결과로 이동합니다.</p>
             <table class="group-stats-table">
                 <thead>
                     <tr>
@@ -1090,15 +1189,78 @@ class ReportGenerator:
 </html>
 '''
 
-        if not os.path.isdir(self.output_dir):
-            os.makedirs(self.output_dir, exist_ok=True)
+        if split_by_group:
+            # Index page keeps summary + group stats only (no detail table).
+            html_content = re.sub(
+                r'<div class="section">\s*<div class="section-title">📝 상세 테스트 결과</div>[\s\S]*?</table>\s*</div>',
+                '',
+                html_content,
+                count=1,
+            )
+
+        if nav_html:
+            html_content = re.sub(
+                r'(<div class="header">[\s\S]*?</div>\s*)',
+                r'\1' + nav_html + '\n        ',
+                html_content,
+                count=1,
+            )
+
+        if hide_group_stats:
+            html_content = re.sub(
+                r'<p class="group-hint">[\s\S]*?</p>\s*',
+                '',
+                html_content,
+                count=0,
+            )
+            html_content = re.sub(
+                r'<div class="section">\s*<div class="section-title">📊 그룹별 통계</div>[\s\S]*?</table>\s*</div>',
+                '',
+                html_content,
+                count=1,
+            )
+
+        if not os.path.isdir(write_dir):
+            os.makedirs(write_dir, exist_ok=True)
             
         try:
-            report_path = os.path.join(self.output_dir, output_file)
+            report_path = os.path.join(write_dir, output_file)
             with open(report_path, 'w', encoding='utf-8') as f:
                 f.write(html_content)
         except Exception as e:
             print(f"Error generating report: {e}", file=sys.stderr)
             return ""
+
+        if split_by_group:
+            index_name = os.path.basename(report_path)
+            for group_name in sorted(cases_by_group.keys()):
+                group_cases = cases_by_group[group_name]
+                group_file = group_file_map[group_name]
+                group_gen = ReportGenerator(
+                    group_cases,
+                    self.vector_extractor,
+                    title=f"{self.title} / {group_name}",
+                    meta_info=None,
+                    project_root=self.project_root,
+                    log_source_name=self.log_source_name,
+                    log_sha256=self.log_sha256,
+                    log_source_path=None,
+                    show_git_info=self.show_git_info,
+                )
+                group_gen.timestamp = self.timestamp
+                group_gen.output_dir = self.output_dir
+                group_gen.report_bundle_dir = write_dir
+                group_path = group_gen.generate_html_report(
+                    output_file=group_file,
+                    split_by_group=False,
+                    nav_html=(
+                        f'<div class="nav-back"><a href="{html.escape(index_name, quote=True)}">'
+                        f'&larr; Summary</a> &nbsp;|&nbsp; <strong>{html.escape(group_name)}</strong></div>'
+                    ),
+                    hide_group_stats=True,
+                    write_dir=write_dir,
+                )
+                if group_path:
+                    self.generated_group_reports.append(group_path)
         
         return report_path
