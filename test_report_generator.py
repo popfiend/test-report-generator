@@ -64,10 +64,10 @@ def main():
             sample = ", ".join(list(gu.keys())[:5])
             print(f"[!] TestLog[GIVEN] keys not matched to tests: {len(gu)} — e.g. {sample}")
         if ea:
-            print(f"[+] Applied TestLog[EXPECTED] to {ea} test case(s) from log")
+            print(f"[+] Applied TestLog[ACTUAL] to {ea} test case(s) from log")
         if eu:
             sample = ", ".join(list(eu.keys())[:5])
-            print(f"[!] TestLog[EXPECTED] keys not matched to tests: {len(eu)} — e.g. {sample}")
+            print(f"[!] TestLog[ACTUAL] keys not matched to tests: {len(eu)} — e.g. {sample}")
     
     print("[*] Generating report...\n")
     generator = ReportGenerator(

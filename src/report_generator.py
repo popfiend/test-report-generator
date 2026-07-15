@@ -147,7 +147,7 @@ class ReportGenerator:
                             <strong>{key_html}:</strong>
                             {header_value_code}{file_info}
                         </div>
-                        <button type="button" class="data-toggle-btn" data-target="{toggle_id}" aria-expanded="false">자세히</button>
+                        <button type="button" class="data-toggle-btn" data-target="{toggle_id}" aria-expanded="false">Details</button>
                     </div>
                     <div id="{toggle_id}" class="data-entry-detail">
                         {detail_display}
@@ -179,7 +179,10 @@ class ReportGenerator:
             html_parts.append(html_part)
         
         return ''.join(html_parts)
-    
+
+    def _is_empty_data(self, data_str: Optional[str]) -> bool:
+        return not data_str or data_str.strip() in ('', '-')
+
     def _get_meta_label(self, key: str) -> str:
         if not key:
             return ""
@@ -283,26 +286,65 @@ class ReportGenerator:
                 f'<small style="color: #999;">{html.escape(file_info)}</small>'
             )
             
-            # PreCondition text representation (newline by comma)
-            if case.precondition and case.precondition.strip():
-                # Newline by comma
-                precond_lines = [line.strip() for line in case.precondition.split(',')]
-                precond_display = '<br/>'.join(precond_lines)
+            # PreCondition text representation (single box with numbered items)
+            precond_empty = self._is_empty_data(case.precondition)
+            if not precond_empty:
+                precond_items = [
+                    line.strip()
+                    for line in case.precondition.split(',')
+                    if line.strip()
+                ]
+                precond_rows = []
+                for num, item in enumerate(precond_items, 1):
+                    precond_rows.append(
+                        f'<div class="precond-item">'
+                        f'<span class="precond-num">{num}</span>'
+                        f'<span class="precond-text">{html.escape(item)}</span>'
+                        f'</div>'
+                    )
+                precond_display = (
+                    f'<div class="precond-box">{"".join(precond_rows)}</div>'
+                )
             else:
                 precond_display = '<span style="color: #999;">-</span>'
             
-            # Description text (display inline)
+            # Description text (newline by comma; leading "·" when content exists)
             if case.description and case.description.strip():
-                desc_escaped = html.escape(case.description.strip()).replace('\n', '<br/>')
-                desc_display = f'<div class="desc-text">{desc_escaped}</div>'
+                desc_items = [
+                    line.strip()
+                    for line in case.description.split(',')
+                    if line.strip()
+                ]
+                desc_lines = [
+                    f'<span class="desc-bullet">·</span> {html.escape(item)}'
+                    for item in desc_items
+                ]
+                desc_display = f'<div class="desc-text">{"<br/>".join(desc_lines)}</div>'
             else:
                 desc_display = '<span style="color: #999;">-</span>'
             
-            # Given Data
-            given_display = self._format_data_with_tooltips(case.given_data)
-            
-            # Expected Data
-            expected_display = self._format_data_with_tooltips(case.expected_data)
+            # Data panel: PreCondition / Given / Expected (expand below row on click)
+            given_empty = self._is_empty_data(case.given_data)
+            expected_empty = self._is_empty_data(case.expected_data)
+            given_display = (
+                '<span style="color: #999;">-</span>'
+                if given_empty
+                else self._format_data_with_tooltips(case.given_data)
+            )
+            expected_display = (
+                '<span style="color: #999;">-</span>'
+                if expected_empty
+                else self._format_data_with_tooltips(case.expected_data)
+            )
+            detail_id = f"row-data-{idx}"
+            has_data_detail = not precond_empty or not given_empty or not expected_empty
+            if has_data_detail:
+                data_cell = (
+                    f'<button type="button" class="row-data-toggle-btn" '
+                    f'data-target="{detail_id}" aria-expanded="false">View</button>'
+                )
+            else:
+                data_cell = '<span style="color: #999;">-</span>'
             
             # Result badge
             if case.result == "PASS":
@@ -312,18 +354,48 @@ class ReportGenerator:
             else:
                 status_badge = '<span style="color: #ffc107; font-weight: 700;">⊘ Not Run</span>'
             
-            table_rows += f'''
-                <tr data-index="{idx}" data-test-id="{test_id_attr}" data-group="{group_attr}">
-                    <td>{idx}</td>
-                    <td>{case.test_id if case.test_id else '-'}</td>
-                    <td>{group_test_display}</td>
-                    <td>{precond_display}</td>
-                    <td>{desc_display}</td>
-                    <td style="padding: 12px; vertical-align: top;">{given_display}</td>
-                    <td style="padding: 12px; vertical-align: top;">{expected_display}</td>
-                    <td>{status_badge}</td>
+            if case.test_id:
+                test_id_html = html.escape(case.test_id)
+                test_id_tooltip = html.escape(case.test_id, quote=True)
+                test_id_display = (
+                    f'<span class="test-id-text" title="{test_id_tooltip}">{test_id_html}</span>'
+                )
+            else:
+                test_id_display = '-'
+            
+            detail_row = ""
+            if has_data_detail:
+                detail_row = f'''
+                <tr id="{detail_id}" class="data-detail-row" hidden>
+                    <td colspan="6">
+                        <div class="data-detail-panel">
+                            <div class="data-detail-column data-detail-full">
+                                <div class="data-detail-title">PreCondition</div>
+                                {precond_display}
+                            </div>
+                            <div class="data-detail-column">
+                                <div class="data-detail-title">Given Data</div>
+                                {given_display}
+                            </div>
+                            <div class="data-detail-column">
+                                <div class="data-detail-title">Actual Data</div>
+                                {expected_display}
+                            </div>
+                        </div>
+                    </td>
                 </tr>
 '''
+            
+            table_rows += f'''
+                <tr class="test-row" data-index="{idx}" data-test-id="{test_id_attr}" data-group="{group_attr}" data-detail-id="{detail_id if has_data_detail else ''}">
+                    <td>{idx}</td>
+                    <td>{test_id_display}</td>
+                    <td>{group_test_display}</td>
+                    <td>{desc_display}</td>
+                    <td class="data-toggle-cell">{data_cell}</td>
+                    <td>{status_badge}</td>
+                </tr>
+{detail_row}'''
         
         # Group by group
         group_rows = ""
@@ -553,17 +625,115 @@ class ReportGenerator:
         }}
         /* 상세 테스트 결과 테이블 칼럼 너비 */
         th:nth-child(1), td:nth-child(1) {{ width: 5%; text-align: center; }}  /* No. */
-        th:nth-child(2), td:nth-child(2) {{ width: 10%; text-align: center; }}  /* Test ID */
-        th:nth-child(3), td:nth-child(3) {{ width: 15%; }}  /* Group / Test Name / File */
-        th:nth-child(4), td:nth-child(4) {{ width: 20%; }}  /* PreCondition */
-        td:nth-child(4) {{ overflow: visible; }}  /* Allow multiline precondition */
-        th:nth-child(5), td:nth-child(5) {{ width: 20%; text-align: left; }}  /* Description */
-        td:nth-child(5) {{ overflow: visible; }}  /* Allow multiline description */
-        th:nth-child(6), td:nth-child(6) {{ width: 15%; overflow: visible; }}  /* Given Data */
-        td:nth-child(6) {{ overflow: visible; }}  /* Allow precondition tooltip */
-        th:nth-child(7), td:nth-child(7) {{ width: 15%; overflow: visible; }}  /* Expected Data */
-        td:nth-child(7) {{ overflow: visible; }}  /* Allow precondition tooltip */
-        th:nth-child(8), td:nth-child(8) {{ width: 10%; text-align: center; }}  /* Result */
+        th:nth-child(2), td:nth-child(2) {{ width: 15%; text-align: center; }}  /* Test ID */
+        td:nth-child(2) {{
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }}
+        .test-id-text {{
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            cursor: default;
+        }}
+        th:nth-child(3), td:nth-child(3) {{ width: 25%; }}  /* Group / Test Name / File */
+        th:nth-child(4), td:nth-child(4) {{ width: 30%; text-align: left; }}  /* Description */
+        td:nth-child(4) {{ overflow: visible; }}  /* Allow multiline description */
+        th:nth-child(5), td:nth-child(5) {{ width: 10%; text-align: center; }}  /* Data */
+        th:nth-child(6), td:nth-child(6) {{ width: 10%; text-align: center; }}  /* Result */
+        td.data-toggle-cell {{
+            text-align: center;
+            vertical-align: middle;
+            overflow: visible;
+        }}
+        .row-data-toggle-btn {{
+            border: none;
+            background: #667eea;
+            color: #fff;
+            font-size: 11px;
+            padding: 5px 14px;
+            border-radius: 999px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }}
+        .row-data-toggle-btn:hover {{
+            background: #5568d3;
+        }}
+        .row-data-toggle-btn.active {{
+            background: #4451b8;
+        }}
+        tr.data-detail-row > td {{
+            background: #f4f6ff;
+            padding: 0;
+            border-bottom: 1px solid #d7dbff;
+            overflow: visible;
+        }}
+        .data-detail-panel {{
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            padding: 16px 18px;
+            text-align: left;
+        }}
+        .data-detail-column {{
+            min-width: 0;
+        }}
+        .data-detail-full {{
+            grid-column: 1 / -1;
+        }}
+        .data-detail-title {{
+            font-size: 12px;
+            font-weight: 700;
+            color: #4451b8;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }}
+        .precond-box {{
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 12px 14px;
+            background: #ffffff;
+            border: 1px solid #cfd6ff;
+            border-left: 4px solid #667eea;
+            border-radius: 8px;
+            box-shadow: 0 1px 2px rgba(102, 126, 234, 0.08);
+        }}
+        .precond-item {{
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }}
+        .precond-num {{
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 22px;
+            height: 22px;
+            padding: 0 6px;
+            border-radius: 999px;
+            background: #667eea;
+            color: #fff;
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 1;
+        }}
+        .precond-text {{
+            font-size: 12px;
+            line-height: 1.5;
+            color: #333;
+            word-break: break-word;
+            padding-top: 1px;
+        }}
+        @media (max-width: 900px) {{
+            .data-detail-panel {{
+                grid-template-columns: 1fr;
+            }}
+        }}
         
         /* 그룹별 통계 테이블 */
         .group-stats-table {{
@@ -594,6 +764,11 @@ class ReportGenerator:
             line-height: 1.5;
             color: #333;
             word-break: break-word;
+        }}
+        .desc-bullet {{
+            color: #667eea;
+            font-weight: 700;
+            margin-right: 2px;
         }}
         
         .badge {{
@@ -790,10 +965,8 @@ class ReportGenerator:
                         <th class="sortable" data-sort-key="index">No.</th>
                         <th class="sortable" data-sort-key="testId">Test ID</th>
                         <th class="sortable" data-sort-key="group">Group / Test Name / File Name</th>
-                        <th>PreCondition</th>
                         <th>Desc</th>
-                        <th>Given Data</th>
-                        <th>Expected Data</th>
+                        <th>Data</th>
                         <th>Result</th>
                     </tr>
                 </thead>
@@ -808,7 +981,7 @@ class ReportGenerator:
             if (!table) return;
             const tbody = table.querySelector('tbody');
             const headers = table.querySelectorAll('th.sortable');
-            const rows = Array.from(tbody.querySelectorAll('tr'));
+            const rows = Array.from(tbody.querySelectorAll('tr.test-row'));
             let currentSort = {{ key: 'index', direction: 'asc' }};
             
             function getValue(row, key) {{
@@ -843,7 +1016,16 @@ class ReportGenerator:
                         : bVal.localeCompare(aVal);
                 }});
                 
-                sorted.forEach(row => tbody.appendChild(row));
+                sorted.forEach(row => {{
+                    tbody.appendChild(row);
+                    const detailId = row.dataset.detailId;
+                    if (detailId) {{
+                        const detailRow = document.getElementById(detailId);
+                        if (detailRow) {{
+                            tbody.appendChild(detailRow);
+                        }}
+                    }}
+                }});
                 rows.splice(0, rows.length, ...sorted);
                 currentSort = {{ key, direction }};
                 
@@ -864,6 +1046,29 @@ class ReportGenerator:
             }}
         }})();
         (function() {{
+            function setRowDataExpanded(detailRow, expanded) {{
+                if (!detailRow) return;
+                detailRow.hidden = !expanded;
+                const detailId = detailRow.id;
+                document.querySelectorAll('.row-data-toggle-btn[data-target="' + detailId + '"]').forEach(btn => {{
+                    btn.setAttribute('aria-expanded', String(expanded));
+                    btn.classList.toggle('active', expanded);
+                    btn.textContent = expanded ? 'Hide' : 'View';
+                }});
+            }}
+            
+            document.querySelectorAll('.row-data-toggle-btn').forEach(button => {{
+                button.addEventListener('click', () => {{
+                    const targetId = button.getAttribute('data-target');
+                    if (!targetId) return;
+                    const detailRow = document.getElementById(targetId);
+                    if (!detailRow) return;
+                    const expanded = detailRow.hidden;
+                    setRowDataExpanded(detailRow, expanded);
+                }});
+            }});
+        }})();
+        (function() {{
             const toggleButtons = document.querySelectorAll('.data-toggle-btn');
             toggleButtons.forEach(button => {{
                 button.addEventListener('click', () => {{
@@ -873,7 +1078,7 @@ class ReportGenerator:
                     if (!target) return;
                     const isActive = target.classList.toggle('active');
                     button.setAttribute('aria-expanded', String(isActive));
-                    button.textContent = isActive ? '숨기기' : '자세히';
+                    button.textContent = isActive ? 'Hide' : 'Details';
                 }});
             }});
         }})();
