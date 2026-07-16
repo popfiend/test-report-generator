@@ -338,7 +338,7 @@ class ReportGenerator:
             if not precond_empty:
                 precond_items = [
                     line.strip()
-                    for line in case.precondition.split(',')
+                    for line in case.precondition.split('.')
                     if line.strip()
                 ]
                 precond_rows = []
@@ -355,11 +355,11 @@ class ReportGenerator:
             else:
                 precond_display = '<span style="color: #999;">-</span>'
             
-            # Description text (newline by comma; leading "·" when content exists)
+            # Description text (newline by period; leading "·" when content exists)
             if case.description and case.description.strip():
                 desc_items = [
                     line.strip()
-                    for line in case.description.split(',')
+                    for line in case.description.split('.')
                     if line.strip()
                 ]
                 desc_lines = [
@@ -425,7 +425,7 @@ class ReportGenerator:
                                 {given_display}
                             </div>
                             <div class="data-detail-column">
-                                <div class="data-detail-title">Actual Data</div>
+                                <div class="data-detail-title">Expected Data</div>
                                 {expected_display}
                             </div>
                         </div>
@@ -491,7 +491,7 @@ class ReportGenerator:
             log_href = html.escape(self.log_source_name, quote=True)
             checksum = html.escape(str(self.log_sha256 or "N/A"))
             info_lines.append(
-                f'Log [file: <a class="log-link" href="{log_href}">{log_name}</a>'
+                f'Log [file: <a class="log-link" href="{log_href}" target="_blank" rel="noopener noreferrer">{log_name}</a>'
                 f' | checksum(SHA256): {checksum}]'
             )
         
@@ -502,6 +502,25 @@ class ReportGenerator:
             <strong>Test Report Generator</strong> v{version_display}
         </div>
         '''
+
+        # Index page (split_by_group): detail table included but collapsed by default.
+        # Group pages: detail expanded + paginated.
+        detail_collapsed = split_by_group
+        detail_expanded_attr = "false" if detail_collapsed else "true"
+        detail_toggle_label = "Show" if detail_collapsed else "Hide"
+        detail_body_hidden_attr = " hidden" if detail_collapsed else ""
+        enable_pagination = "false" if split_by_group else "true"
+        pagination_html = ""
+        if not split_by_group:
+            pagination_html = '''
+            <div id="detail-pagination" class="pagination" aria-label="Detail table pagination">
+                <div class="page-controls">
+                    <button type="button" class="page-btn" data-page-action="prev">Prev</button>
+                    <div class="page-numbers"></div>
+                    <button type="button" class="page-btn" data-page-action="next">Next</button>
+                </div>
+                <span class="page-info"></span>
+            </div>'''
         
         html_content = f'''<!DOCTYPE html>
 <html lang="ko">
@@ -651,6 +670,35 @@ class ReportGenerator:
             color: #333;
             border-bottom: 2px solid #667eea;
             padding-bottom: 10px;
+        }}
+        .section-title-with-toggle {{
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }}
+        .section-toggle-btn {{
+            border: 1px solid #667eea;
+            background: #fff;
+            color: #4451b8;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 6px 14px;
+            border-radius: 999px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.2s ease, color 0.2s ease;
+        }}
+        .section-toggle-btn:hover {{
+            background: #667eea;
+            color: #fff;
+        }}
+        .section-toggle-btn[aria-expanded="true"] {{
+            background: #667eea;
+            color: #fff;
+        }}
+        .section-collapsible[hidden] {{
+            display: none;
         }}
         table {{ 
             width: 100%; 
@@ -1007,25 +1055,37 @@ class ReportGenerator:
         }}
         .pagination {{
             display: flex;
+            flex-direction: column;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 16px;
+            padding-top: 8px;
+            width: 100%;
+            text-align: center;
+        }}
+        .pagination .page-controls {{
+            display: flex;
             flex-wrap: wrap;
             align-items: center;
             justify-content: center;
             gap: 8px;
-            margin-top: 16px;
-            padding-top: 8px;
         }}
         .pagination .page-info {{
             font-size: 12px;
             color: #555;
-            margin: 0 8px;
-            min-width: 140px;
+            margin: 0;
+            min-width: 0;
             text-align: center;
+            width: 100%;
         }}
         .pagination .page-numbers {{
             display: flex;
             flex-wrap: wrap;
             gap: 4px;
             justify-content: center;
+            align-items: center;
         }}
         .pagination .page-btn {{
             border: 1px solid #cfd6ff;
@@ -1112,7 +1172,14 @@ class ReportGenerator:
         </div>
         
         <div class="section">
-            <div class="section-title">📝 상세 테스트 결과</div>
+            <div class="section-title section-title-with-toggle">
+                <span>📝 상세 테스트 결과</span>
+                <button type="button" id="detail-results-toggle" class="section-toggle-btn"
+                    aria-expanded="{detail_expanded_attr}" aria-controls="detail-results-body">
+                    {detail_toggle_label}
+                </button>
+            </div>
+            <div id="detail-results-body" class="section-collapsible"{detail_body_hidden_attr}>
             <table id="detail-table">
                 <thead>
                     <tr>
@@ -1128,16 +1195,13 @@ class ReportGenerator:
                     {table_rows}
                 </tbody>
             </table>
-            <div id="detail-pagination" class="pagination" aria-label="Detail table pagination">
-                <button type="button" class="page-btn" data-page-action="prev">Prev</button>
-                <div class="page-numbers"></div>
-                <button type="button" class="page-btn" data-page-action="next">Next</button>
-                <span class="page-info"></span>
+            {pagination_html}
             </div>
         </div>
         <script>
         (function() {{
             const PAGE_SIZE = 10;
+            const ENABLE_PAGINATION = {enable_pagination};
             const table = document.getElementById('detail-table');
             if (!table) return;
             const tbody = table.querySelector('tbody');
@@ -1180,6 +1244,10 @@ class ReportGenerator:
             }}
             
             function renderPage() {{
+                if (!ENABLE_PAGINATION) {{
+                    rows.forEach(row => {{ row.hidden = false; }});
+                    return;
+                }}
                 const pages = totalPages();
                 if (currentPage > pages) currentPage = pages;
                 if (currentPage < 1) currentPage = 1;
@@ -1269,7 +1337,7 @@ class ReportGenerator:
                 defaultHeader.classList.add('sorted-asc');
             }}
             
-            if (pager) {{
+            if (ENABLE_PAGINATION && pager) {{
                 const prevBtn = pager.querySelector('[data-page-action="prev"]');
                 const nextBtn = pager.querySelector('[data-page-action="next"]');
                 if (prevBtn) {{
@@ -1329,6 +1397,21 @@ class ReportGenerator:
                 }});
             }});
         }})();
+        (function() {{
+            const toggleBtn = document.getElementById('detail-results-toggle');
+            const body = document.getElementById('detail-results-body');
+            if (!toggleBtn || !body) return;
+            toggleBtn.addEventListener('click', () => {{
+                const expanded = body.hasAttribute('hidden');
+                if (expanded) {{
+                    body.removeAttribute('hidden');
+                }} else {{
+                    body.setAttribute('hidden', '');
+                }}
+                toggleBtn.setAttribute('aria-expanded', String(expanded));
+                toggleBtn.textContent = expanded ? 'Hide' : 'Show';
+            }});
+        }})();
         </script>
         {footer_html}
     </div>
@@ -1336,15 +1419,6 @@ class ReportGenerator:
 </body>
 </html>
 '''
-
-        if split_by_group:
-            # Index page keeps summary + group stats only (no detail table).
-            html_content = re.sub(
-                r'<div class="section">\s*<div class="section-title">📝 상세 테스트 결과</div>[\s\S]*?(?=\s*<script>)',
-                '',
-                html_content,
-                count=1,
-            )
 
         if nav_html:
             html_content = re.sub(

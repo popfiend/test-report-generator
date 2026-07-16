@@ -7,9 +7,9 @@ from src.test_cast_dto import TestCase
 
 @dataclass
 class ParsedExecutionLog:
-    """Unity/디바이스 실행 로그: TestResult(pass/fail)와 TestLog[GIVEN|ACTUAL] 블록.
+    """Unity/디바이스 실행 로그: TestResult(pass/fail)와 TestLog[GIVEN|EXPECTED] 블록.
 
-    레거시 로그의 TestLog[EXPECTED]도 ACTUAL과 동일하게 처리한다.
+    TestLog[ACTUAL]은 파싱하지 않는다.
     """
 
     results: Dict[str, str] = field(default_factory=dict)
@@ -26,13 +26,14 @@ class LogResultProcessor:
         re.IGNORECASE,
     )
     # 배열: TestLog[GIVEN] : plaintext(16) [0x6B, 0xC1, ...]  (test_common.c print_array)
+    # ACTUAL은 의도적으로 제외한다.
     TEST_LOG_ARRAY_PATTERN = re.compile(
-        r"^TestLog\[(?P<kind>GIVEN|ACTUAL|EXPECTED)\]\s*:\s*(?P<label>[^(\s]+?)\s*\((?P<blen>\d+)\)\s*\[(?P<inner>[^\]]*)\]\s*$",
+        r"^TestLog\[(?P<kind>GIVEN|EXPECTED)\]\s*:\s*(?P<label>[^(\s]+?)\s*\((?P<blen>\d+)\)\s*\[(?P<inner>[^\]]*)\]\s*$",
         re.IGNORECASE,
     )
     # 스칼라: TestLog[GIVEN] : keyIdx [0x000000c9]  (print_string_and_value, %08lx)
     TEST_LOG_SCALAR_PATTERN = re.compile(
-        r"^TestLog\[(?P<kind>GIVEN|ACTUAL|EXPECTED)\]\s*:\s*(?P<label>.+?)\s*\[(?P<val>0x[0-9A-Fa-f]+)\]\s*$",
+        r"^TestLog\[(?P<kind>GIVEN|EXPECTED)\]\s*:\s*(?P<label>.+?)\s*\[(?P<val>0x[0-9A-Fa-f]+)\]\s*$",
         re.IGNORECASE,
     )
 
@@ -49,7 +50,7 @@ class LogResultProcessor:
             kind_upper = kind.upper()
             if kind_upper == "GIVEN":
                 given_buf.append(entry)
-            elif kind_upper in ("ACTUAL", "EXPECTED"):
+            elif kind_upper == "EXPECTED":
                 exp_buf.append(entry)
 
         def flush_buffers(test_key: str) -> None:
@@ -169,7 +170,7 @@ class LogResultProcessor:
             else:
                 given_unmatched[key] = blob[:120] + ("..." if len(blob) > 120 else "")
 
-        # Actual Data (TestLog[ACTUAL], legacy TestLog[EXPECTED])
+        # Expected Data (TestLog[EXPECTED] only; ACTUAL is ignored)
         expected_applied = 0
         expected_unmatched: Dict[str, str] = {}
         for key, blob in parsed.expected_from_log.items():
