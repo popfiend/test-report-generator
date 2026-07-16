@@ -5,7 +5,7 @@ from typing import Tuple, Optional
 
 from src.meta_info import load_meta_info
 from src.unity_test_parser import UnityTestParser
-from src.log_retsult_processor import LogResultProcessor, ParsedExecutionLog
+from src.log_result_processor import LogResultProcessor, ParsedExecutionLog
 from src.report_generator import ReportGenerator
 
 
