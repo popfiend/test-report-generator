@@ -65,6 +65,7 @@ class UnityTestParser:
                 description = fields.get('test_desc', test_name)
                 given = fields.get('given', '-')
                 expected = fields.get('expected', '-')
+                actual = fields.get('actual', '-')
                 precondition = fields.get('pre_con', '')
                 test_id = fields.get('test_id', '')
                 
@@ -77,6 +78,7 @@ class UnityTestParser:
                     description=description,
                     given_data=given,
                     expected_data=expected,
+                    actual_data=actual,
                     precondition=precondition
                 )
                 cases.append(case)

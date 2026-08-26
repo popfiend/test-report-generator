@@ -53,7 +53,7 @@ def main():
     parsed_log, log_source_name, log_sha256 = load_log_results(args.log_file)
     log_source_path = args.log_file if args.log_file and os.path.isfile(args.log_file) else None
     if parsed_log and parsed_log.has_any_data():
-        ra, ru, ga, gu, ea, eu = LogResultProcessor.apply_to_cases(test_cases, parsed_log)
+        ra, ru, ga, gu, ea, eu, aa, au = LogResultProcessor.apply_to_cases(test_cases, parsed_log)
         if ra:
             print(f"[+] Applied {ra} log-based pass/fail results")
         if ru:
@@ -69,6 +69,11 @@ def main():
         if eu:
             sample = ", ".join(list(eu.keys())[:5])
             print(f"[!] TestLog[EXPECTED] keys not matched to tests: {len(eu)} — e.g. {sample}")
+        if aa:
+            print(f"[+] Applied TestLog[ACTUAL] to {aa} test case(s) from log")
+        if au:
+            sample = ", ".join(list(au.keys())[:5])
+            print(f"[!] TestLog[ACTUAL] keys not matched to tests: {len(au)} — e.g. {sample}")
     
     print("[*] Generating report...\n")
     generator = ReportGenerator(

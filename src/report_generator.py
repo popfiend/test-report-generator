@@ -91,18 +91,32 @@ class ReportGenerator:
                 inline_formatted = self.vector_extractor.get_formatted_inline_byte_string(val)
             tooltip_text = tooltip_from_file or inline_formatted
 
-            # 로그 인라인 바이트만 자세히에 넣는 경우: 헤더에 긴 hex 나열은 숨김
-            hide_header_hex_preview = (
+            # 로그 인라인 바이트: 헤더에는 짧은 프리뷰만 두고, 전체는 Details에 표시
+            # (헤더를 비우면 Given 없이 Expected만 있을 때 값이 없는 것처럼 보임)
+            inline_hex_tokens = None
+            if (
                 inline_formatted is not None
                 and not literal_value
                 and not scalar_info
                 and not is_string_var
-            )
-            header_value_code = (
-                ""
-                if hide_header_hex_preview
-                else f'<code style="background-color: #e7f3ff; color: #0066cc;">{val_escaped}</code>'
-            )
+            ):
+                inline_hex_tokens = self.vector_extractor.parse_inline_byte_hex_tokens(val)
+
+            if inline_hex_tokens:
+                preview_n = 8
+                preview = ", ".join(inline_hex_tokens[:preview_n])
+                if len(inline_hex_tokens) > preview_n:
+                    preview += f", … ({len(inline_hex_tokens)} bytes)"
+                else:
+                    preview = f"[{preview}]"
+                header_value_code = (
+                    f'<code style="background-color: #e7f3ff; color: #0066cc;">'
+                    f'{html.escape(preview)}</code>'
+                )
+            else:
+                header_value_code = (
+                    f'<code style="background-color: #e7f3ff; color: #0066cc;">{val_escaped}</code>'
+                )
 
             if tooltip_text or literal_value or scalar_info:
                 detail_sections = []
@@ -370,9 +384,10 @@ class ReportGenerator:
             else:
                 desc_display = '<span style="color: #999;">-</span>'
             
-            # Data panel: PreCondition / Given / Expected (expand below row on click)
+            # Data panel: PreCondition / Given / Expected / Actual (expand below row on click)
             given_empty = self._is_empty_data(case.given_data)
             expected_empty = self._is_empty_data(case.expected_data)
+            actual_empty = self._is_empty_data(getattr(case, "actual_data", None))
             given_display = (
                 '<span style="color: #999;">-</span>'
                 if given_empty
@@ -383,8 +398,18 @@ class ReportGenerator:
                 if expected_empty
                 else self._format_data_with_tooltips(case.expected_data)
             )
+            actual_display = (
+                '<span style="color: #999;">-</span>'
+                if actual_empty
+                else self._format_data_with_tooltips(case.actual_data)
+            )
             detail_id = f"row-data-{idx}"
-            has_data_detail = not precond_empty or not given_empty or not expected_empty
+            has_data_detail = (
+                not precond_empty
+                or not given_empty
+                or not expected_empty
+                or not actual_empty
+            )
             if has_data_detail:
                 data_cell = (
                     f'<button type="button" class="row-data-toggle-btn" '
@@ -412,22 +437,49 @@ class ReportGenerator:
             
             detail_row = ""
             if has_data_detail:
-                detail_row = f'''
-                <tr id="{detail_id}" class="data-detail-row" hidden>
-                    <td colspan="6">
-                        <div class="data-detail-panel">
+                precond_column = ""
+                if not precond_empty:
+                    precond_column = f'''
                             <div class="data-detail-column data-detail-full">
                                 <div class="data-detail-title">PreCondition</div>
                                 {precond_display}
-                            </div>
+                            </div>'''
+                given_column = ""
+                if not given_empty:
+                    given_column = f'''
                             <div class="data-detail-column">
                                 <div class="data-detail-title">Given Data</div>
                                 {given_display}
-                            </div>
+                            </div>'''
+                expected_column = ""
+                if not expected_empty:
+                    expected_column = f'''
                             <div class="data-detail-column">
                                 <div class="data-detail-title">Expected Data</div>
                                 {expected_display}
-                            </div>
+                            </div>'''
+                actual_column = ""
+                if not actual_empty:
+                    actual_column = f'''
+                            <div class="data-detail-column">
+                                <div class="data-detail-title">Actual Data</div>
+                                {actual_display}
+                            </div>'''
+                data_col_count = (
+                    (0 if given_empty else 1)
+                    + (0 if expected_empty else 1)
+                    + (0 if actual_empty else 1)
+                )
+                if data_col_count < 1:
+                    data_col_count = 1
+                detail_row = f'''
+                <tr id="{detail_id}" class="data-detail-row" hidden>
+                    <td colspan="6">
+                        <div class="data-detail-panel" style="--data-cols: {data_col_count};">
+                            {precond_column}
+                            {given_column}
+                            {expected_column}
+                            {actual_column}
                         </div>
                     </td>
                 </tr>
@@ -800,7 +852,7 @@ class ReportGenerator:
         }}
         .data-detail-panel {{
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: repeat(var(--data-cols, 1), minmax(0, 1fr));
             gap: 16px;
             padding: 16px 18px;
             text-align: left;

@@ -10,6 +10,7 @@ class TestCase:
     description: str
     given_data: str
     expected_data: str
+    actual_data: str = "-"
     precondition: str = ""
     result: str = "Not Run"
     execution_time: float = 0.0

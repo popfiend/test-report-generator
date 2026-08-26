@@ -7,17 +7,20 @@ from src.test_cast_dto import TestCase
 
 @dataclass
 class ParsedExecutionLog:
-    """Unity/디바이스 실행 로그: TestResult(pass/fail)와 TestLog[GIVEN|EXPECTED] 블록.
-
-    TestLog[ACTUAL]은 파싱하지 않는다.
-    """
+    """Unity/디바이스 실행 로그: TestResult(pass/fail)와 TestLog[GIVEN|EXPECTED|ACTUAL] 블록."""
 
     results: Dict[str, str] = field(default_factory=dict)
     given_from_log: Dict[str, str] = field(default_factory=dict)
     expected_from_log: Dict[str, str] = field(default_factory=dict)
+    actual_from_log: Dict[str, str] = field(default_factory=dict)
 
     def has_any_data(self) -> bool:
-        return bool(self.results or self.given_from_log or self.expected_from_log)
+        return bool(
+            self.results
+            or self.given_from_log
+            or self.expected_from_log
+            or self.actual_from_log
+        )
 
 
 class LogResultProcessor:
@@ -25,15 +28,17 @@ class LogResultProcessor:
         r"TestResult\s*:\s*(?P<name>.+?)\s*\[(?P<status>pass|fail)\]",
         re.IGNORECASE,
     )
-    # 배열: TestLog[GIVEN] : plaintext(16) [0x6B, 0xC1, ...]  (test_common.c print_array)
-    # ACTUAL은 의도적으로 제외한다.
+    # 배열: TestLog[GIVEN] : ciphertext(64) [0x3A, 0xD7, ...]  (print_array)
     TEST_LOG_ARRAY_PATTERN = re.compile(
-        r"^TestLog\[(?P<kind>GIVEN|EXPECTED)\]\s*:\s*(?P<label>[^(\s]+?)\s*\((?P<blen>\d+)\)\s*\[(?P<inner>[^\]]*)\]\s*$",
+        r"^TestLog\[(?P<kind>GIVEN|EXPECTED|ACTUAL)\]\s*:\s*(?P<label>[^(\s]+?)\s*\((?P<blen>\d+)\)\s*\[(?P<inner>[^\]]*)\]\s*$",
         re.IGNORECASE,
     )
-    # 스칼라: TestLog[GIVEN] : keyIdx [0x000000c9]  (print_string_and_value, %08lx)
+    # 스칼라: hex / 십진수 / 식별자
+    #   TestLog[GIVEN] : key_idx [1500]
+    #   TestLog[GIVEN] : keyIdx [0x000000c9]
+    #   TestLog[EXPECTED] : ESF_RET [ESF_RET_OK]
     TEST_LOG_SCALAR_PATTERN = re.compile(
-        r"^TestLog\[(?P<kind>GIVEN|EXPECTED)\]\s*:\s*(?P<label>.+?)\s*\[(?P<val>0x[0-9A-Fa-f]+)\]\s*$",
+        r"^TestLog\[(?P<kind>GIVEN|EXPECTED|ACTUAL)\]\s*:\s*(?P<label>.+?)\s*\[(?P<val>[^\]]+)\]\s*$",
         re.IGNORECASE,
     )
 
@@ -45,6 +50,7 @@ class LogResultProcessor:
 
         given_buf: List[str] = []
         exp_buf: List[str] = []
+        act_buf: List[str] = []
 
         def append_test_log_entry(kind: str, entry: str) -> None:
             kind_upper = kind.upper()
@@ -52,14 +58,19 @@ class LogResultProcessor:
                 given_buf.append(entry)
             elif kind_upper == "EXPECTED":
                 exp_buf.append(entry)
+            elif kind_upper == "ACTUAL":
+                act_buf.append(entry)
 
         def flush_buffers(test_key: str) -> None:
             if given_buf:
                 out.given_from_log[test_key] = ", ".join(given_buf)
             if exp_buf:
                 out.expected_from_log[test_key] = ", ".join(exp_buf)
+            if act_buf:
+                out.actual_from_log[test_key] = ", ".join(act_buf)
             given_buf.clear()
             exp_buf.clear()
+            act_buf.clear()
 
         for raw in log_content.splitlines():
             stripped = raw.strip("\r").strip()
@@ -94,7 +105,7 @@ class LogResultProcessor:
             if sca:
                 kind = sca.group("kind")
                 label = sca.group("label").strip()
-                val = sca.group("val")
+                val = sca.group("val").strip()
                 append_test_log_entry(kind, f"{label}={val}")
                 continue
 
@@ -140,13 +151,19 @@ class LogResultProcessor:
         cls,
         test_cases: List[TestCase],
         parsed: ParsedExecutionLog,
-    ) -> Tuple[int, Dict[str, str], int, Dict[str, str], int, Dict[str, str]]:
+    ) -> Tuple[
+        int, Dict[str, str],
+        int, Dict[str, str],
+        int, Dict[str, str],
+        int, Dict[str, str],
+    ]:
         """로그를 테스트 케이스에 반영한다.
 
         Returns:
             (results_applied, results_unmatched,
              given_applied, given_unmatched,
-             expected_applied, expected_unmatched)
+             expected_applied, expected_unmatched,
+             actual_applied, actual_unmatched)
         """
         by_full, by_short = cls._build_lookups(test_cases)
 
@@ -170,7 +187,6 @@ class LogResultProcessor:
             else:
                 given_unmatched[key] = blob[:120] + ("..." if len(blob) > 120 else "")
 
-        # Expected Data (TestLog[EXPECTED] only; ACTUAL is ignored)
         expected_applied = 0
         expected_unmatched: Dict[str, str] = {}
         for key, blob in parsed.expected_from_log.items():
@@ -181,6 +197,16 @@ class LogResultProcessor:
             else:
                 expected_unmatched[key] = blob[:120] + ("..." if len(blob) > 120 else "")
 
+        actual_applied = 0
+        actual_unmatched: Dict[str, str] = {}
+        for key, blob in parsed.actual_from_log.items():
+            case = cls._resolve_case(key, by_full, by_short)
+            if case:
+                case.actual_data = blob
+                actual_applied += 1
+            else:
+                actual_unmatched[key] = blob[:120] + ("..." if len(blob) > 120 else "")
+
         return (
             results_applied,
             results_unmatched,
@@ -188,4 +214,6 @@ class LogResultProcessor:
             given_unmatched,
             expected_applied,
             expected_unmatched,
+            actual_applied,
+            actual_unmatched,
         )

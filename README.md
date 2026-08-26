@@ -91,12 +91,13 @@ python test_report_generator\test_report_generator.py \
   - `key=value` is treated as a literal scalar or string.
   - `key=[src:file_path]symbol_name` lets `vector_extractor` resolve actual vector data and show it in the HTML “details” accordion.
   - Items are comma-separated, and surrounding whitespace is trimmed automatically.
-- **Run log `TestLog[GIVEN]` / `TestLog[EXPECTED]`** (optional, `--log-file`):
+- **Run log `TestLog[GIVEN]` / `TestLog[EXPECTED]` / `TestLog[ACTUAL]`** (optional, `--log-file`):
   - When the execution log contains lines emitted by `test/inc/test_common.h` (`print_array`, `print_string_and_value`), the generator maps them onto the **next** `TestResult : <name> [pass|fail]` for the same test name.
   - Supported shapes (whole line, trimmed):
-    - Scalar: `TestLog[GIVEN] : keyIdx [0x000000c9]`
+    - Scalar (hex / decimal / identifier): `TestLog[GIVEN] : keyIdx [0x000000c9]`, `TestLog[EXPECTED] : ESF_RET [ESF_RET_OK]`
     - Byte dump: `TestLog[GIVEN] : plaintext(16) [0x6B, 0xC1, ...]`
-  - Parsed fields are turned into comma-safe `key=value` pairs (byte dumps use space-separated `0x..` tokens so `DataParser` splitting stays stable) and **override** the HTML Given/Expected for that test when the log name matches `Group::Test`, `Group.Test`, or a unique bare `Test` name.
+  - Parsed fields are turned into comma-safe `key=value` pairs (byte dumps use space-separated `0x..` tokens so `DataParser` splitting stays stable) and **override** the HTML Given/Expected/Actual for that test when the log name matches `Group::Test`, `Group.Test`, or a unique bare `Test` name.
+  - Each of GIVEN / EXPECTED / ACTUAL is independent: Expected or Actual alone (without Given) is still applied and shown.
   - `TestLog` lines that are not followed by a `TestResult` in the file are ignored (no test key to attach).
 - **Missing Values**:
   - Empty values render as `-`.
