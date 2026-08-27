@@ -19,9 +19,9 @@ class DataParser:
         
         items = []
 
-        # 다음 `key=` / `key(len)=` 앞에서만 분리한다.
-        # hex 덤프의 `0x76, 0x49` 콤마는 값의 일부로 유지한다.
-        parts = re.split(r",\s*(?=[A-Za-z_][\w]*(?:\([^)]*\))?=)", data_str)
+        # 다음 `key=` 앞에서만 분리한다. 키에 공백이 있어도 되고
+        # (`Update ESF_RET=16`), hex 덤프의 `0x76, 0x49` 콤마는 값으로 유지한다.
+        parts = re.split(r",\s*(?=[^=,]+=)", data_str)
 
         for part in parts:
             part = part.strip()

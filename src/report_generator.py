@@ -205,8 +205,11 @@ class ReportGenerator:
     def _format_log_entries(self, entries) -> str:
         if not entries:
             return '<span style="color: #999;">-</span>'
-        blobs = [e.as_assignment() for e in entries]
-        return self._format_data_with_tooltips(", ".join(blobs))
+        # 항목을 다시 콤마로 붙이지 않는다. `Update ESF_RET=16`처럼 키에 공백이
+        # 있으면 재파싱 시 다음 필드가 값에 붙는다.
+        return ''.join(
+            self._format_data_with_tooltips(e.as_assignment()) for e in entries
+        )
 
     def _render_log_timeline(self, entries) -> str:
         given_entries, rounds = LogResultProcessor.group_rounds(entries)
