@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any, List
 
 @dataclass
 class TestCase:
@@ -14,6 +15,8 @@ class TestCase:
     precondition: str = ""
     result: str = "Not Run"
     execution_time: float = 0.0
+    # 실행 로그 TestLog 줄 (순서 보존). 비어 있으면 소스 주석 Given/Expected/Actual 사용.
+    log_entries: List[Any] = field(default_factory=list)
     
     @property
     def full_name(self) -> str:

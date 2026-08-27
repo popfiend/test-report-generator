@@ -93,11 +93,13 @@ python test_report_generator\test_report_generator.py \
   - Items are comma-separated, and surrounding whitespace is trimmed automatically.
 - **Run log `TestLog[GIVEN]` / `TestLog[EXPECTED]` / `TestLog[ACTUAL]`** (optional, `--log-file`):
   - When the execution log contains lines emitted by `test/inc/test_common.h` (`print_array`, `print_string_and_value`), the generator maps them onto the **next** `TestResult : <name> [pass|fail]` for the same test name.
-  - Supported shapes (whole line, trimmed):
+  - Each `TestLog` line is parsed independently. GIVEN / EXPECTED / ACTUAL do **not** need to appear in a fixed order or with matching counts (e.g. streaming AES: GIVEN inputs, then several EXPECTED/ACTUAL pairs per API call).
+  - After ACTUAL, a new EXPECTED starts a new comparison round (Step 1, Step 2, …) in the report so interleaved logs are not flattened into one Expected column and one Actual column.
+  - Supported shapes (prefix before `TestLog` is allowed; a byte dump split across lines is rejoined until `]`):
     - Scalar (hex / decimal / identifier): `TestLog[GIVEN] : keyIdx [0x000000c9]`, `TestLog[EXPECTED] : ESF_RET [ESF_RET_OK]`
     - Byte dump: `TestLog[GIVEN] : plaintext(16) [0x6B, 0xC1, ...]`
-  - Parsed fields are turned into comma-safe `key=value` pairs (byte dumps use space-separated `0x..` tokens so `DataParser` splitting stays stable) and **override** the HTML Given/Expected/Actual for that test when the log name matches `Group::Test`, `Group.Test`, or a unique bare `Test` name.
-  - Each of GIVEN / EXPECTED / ACTUAL is independent: Expected or Actual alone (without Given) is still applied and shown.
+  - Parsed fields override the HTML Given/Expected/Actual for that test when the log name matches `Group::Test`, `Group.Test`, or a unique bare `Test` name.
+  - Expected or Actual alone (without Given) is still applied and shown.
   - `TestLog` lines that are not followed by a `TestResult` in the file are ignored (no test key to attach).
 - **Missing Values**:
   - Empty values render as `-`.

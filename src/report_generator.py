@@ -9,6 +9,7 @@ from collections import defaultdict
 from src.test_cast_dto import TestCase
 from src.vector_extractor import VectorExtractor
 from src.data_parser import DataParser
+from src.log_result_processor import LogResultProcessor
 from src.get_git_info import get_git_info
 from src.version import get_report_generator_version
 
@@ -201,6 +202,56 @@ class ReportGenerator:
         
         return ''.join(html_parts)
 
+    def _format_log_entries(self, entries) -> str:
+        if not entries:
+            return '<span style="color: #999;">-</span>'
+        blobs = [e.as_assignment() for e in entries]
+        return self._format_data_with_tooltips(", ".join(blobs))
+
+    def _render_log_timeline(self, entries) -> str:
+        given_entries, rounds = LogResultProcessor.group_rounds(entries)
+        parts = []
+        if given_entries:
+            parts.append(
+                f'''
+                            <div class="data-detail-column data-detail-full">
+                                <div class="data-detail-title">Given Data</div>
+                                {self._format_log_entries(given_entries)}
+                            </div>'''
+            )
+        for i, (exp_entries, act_entries) in enumerate(rounds, 1):
+            step_label = f"Step {i}" if len(rounds) > 1 else ""
+            step_html = (
+                f'<div class="log-round-label">{html.escape(step_label)}</div>'
+                if step_label
+                else ""
+            )
+            exp_col = ""
+            if exp_entries:
+                exp_col = f'''
+                                <div class="data-detail-column">
+                                    <div class="data-detail-title">Expected Data</div>
+                                    {self._format_log_entries(exp_entries)}
+                                </div>'''
+            act_col = ""
+            if act_entries:
+                act_col = f'''
+                                <div class="data-detail-column">
+                                    <div class="data-detail-title">Actual Data</div>
+                                    {self._format_log_entries(act_entries)}
+                                </div>'''
+            parts.append(
+                f'''
+                            <div class="log-round data-detail-full">
+                                {step_html}
+                                <div class="log-round-grid">
+                                    {exp_col}
+                                    {act_col}
+                                </div>
+                            </div>'''
+            )
+        return "".join(parts)
+
     def _is_empty_data(self, data_str: Optional[str]) -> bool:
         return not data_str or data_str.strip() in ('', '-')
 
@@ -384,7 +435,10 @@ class ReportGenerator:
             else:
                 desc_display = '<span style="color: #999;">-</span>'
             
-            # Data panel: PreCondition / Given / Expected / Actual (expand below row on click)
+            # Data panel: PreCondition + Given/Expected/Actual
+            # 실행 로그는 GIVEN/EXPECTED/ACTUAL 개수·순서가 대칭이 아니므로
+            # 줄 단위로 모은 뒤 ACTUAL 다음 EXPECTED에서 라운드를 나눈다.
+            log_entries = getattr(case, "log_entries", None) or []
             given_empty = self._is_empty_data(case.given_data)
             expected_empty = self._is_empty_data(case.expected_data)
             actual_empty = self._is_empty_data(getattr(case, "actual_data", None))
@@ -406,6 +460,7 @@ class ReportGenerator:
             detail_id = f"row-data-{idx}"
             has_data_detail = (
                 not precond_empty
+                or bool(log_entries)
                 or not given_empty
                 or not expected_empty
                 or not actual_empty
@@ -444,42 +499,45 @@ class ReportGenerator:
                                 <div class="data-detail-title">PreCondition</div>
                                 {precond_display}
                             </div>'''
-                given_column = ""
-                if not given_empty:
-                    given_column = f'''
+                if log_entries:
+                    data_columns = self._render_log_timeline(log_entries)
+                    data_col_count = 1
+                else:
+                    given_column = ""
+                    if not given_empty:
+                        given_column = f'''
                             <div class="data-detail-column">
                                 <div class="data-detail-title">Given Data</div>
                                 {given_display}
                             </div>'''
-                expected_column = ""
-                if not expected_empty:
-                    expected_column = f'''
+                    expected_column = ""
+                    if not expected_empty:
+                        expected_column = f'''
                             <div class="data-detail-column">
                                 <div class="data-detail-title">Expected Data</div>
                                 {expected_display}
                             </div>'''
-                actual_column = ""
-                if not actual_empty:
-                    actual_column = f'''
+                    actual_column = ""
+                    if not actual_empty:
+                        actual_column = f'''
                             <div class="data-detail-column">
                                 <div class="data-detail-title">Actual Data</div>
                                 {actual_display}
                             </div>'''
-                data_col_count = (
-                    (0 if given_empty else 1)
-                    + (0 if expected_empty else 1)
-                    + (0 if actual_empty else 1)
-                )
-                if data_col_count < 1:
-                    data_col_count = 1
+                    data_columns = f"{given_column}{expected_column}{actual_column}"
+                    data_col_count = (
+                        (0 if given_empty else 1)
+                        + (0 if expected_empty else 1)
+                        + (0 if actual_empty else 1)
+                    )
+                    if data_col_count < 1:
+                        data_col_count = 1
                 detail_row = f'''
                 <tr id="{detail_id}" class="data-detail-row" hidden>
                     <td colspan="6">
                         <div class="data-detail-panel" style="--data-cols: {data_col_count};">
                             {precond_column}
-                            {given_column}
-                            {expected_column}
-                            {actual_column}
+                            {data_columns}
                         </div>
                     </td>
                 </tr>
@@ -908,6 +966,22 @@ class ReportGenerator:
             color: #333;
             word-break: break-word;
             padding-top: 1px;
+        }}
+        .log-round {{
+            margin-top: 8px;
+        }}
+        .log-round-label {{
+            font-size: 11px;
+            font-weight: 700;
+            color: #667eea;
+            margin: 4px 0 8px;
+            letter-spacing: 0.3px;
+        }}
+        .log-round-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 16px;
+            min-width: 0;
         }}
         @media (max-width: 900px) {{
             .data-detail-panel {{
