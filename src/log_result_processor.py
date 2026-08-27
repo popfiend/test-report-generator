@@ -121,11 +121,11 @@ class LogResultProcessor:
             act = [e.as_assignment() for e in entries if e.kind == "ACTUAL"]
             out.entries_by_test[test_key] = list(entries)
             if given:
-                out.given_from_log[test_key] = ", ".join(given)
+                out.given_from_log[test_key] = "\n".join(given)
             if exp:
-                out.expected_from_log[test_key] = ", ".join(exp)
+                out.expected_from_log[test_key] = "\n".join(exp)
             if act:
-                out.actual_from_log[test_key] = ", ".join(act)
+                out.actual_from_log[test_key] = "\n".join(act)
             entries.clear()
 
         for raw in log_content.splitlines():

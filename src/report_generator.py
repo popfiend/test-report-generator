@@ -67,7 +67,17 @@ class ReportGenerator:
         items = DataParser.parse_variables(data_str)
         if not items:
             return data_str
-        
+        return self._format_data_items(items)
+
+    def _format_log_entries(self, entries) -> str:
+        if not entries:
+            return '<span style="color: #999;">-</span>'
+        # TestLog 한 줄 = 항목 하나. 콤마로 이어 붙인 뒤 재파싱하지 않는다.
+        # (Finish ESF_RET=16, Finish ESF_ERR_CODE=1 처럼 로그에 없던 콤마가 생김)
+        items = [(e.key, e.value, None) for e in entries]
+        return self._format_data_items(items)
+
+    def _format_data_items(self, items) -> str:
         html_parts = []
         for item in items:
             key = item[0]
@@ -201,15 +211,6 @@ class ReportGenerator:
             html_parts.append(html_part)
         
         return ''.join(html_parts)
-
-    def _format_log_entries(self, entries) -> str:
-        if not entries:
-            return '<span style="color: #999;">-</span>'
-        # 항목을 다시 콤마로 붙이지 않는다. `Update ESF_RET=16`처럼 키에 공백이
-        # 있으면 재파싱 시 다음 필드가 값에 붙는다.
-        return ''.join(
-            self._format_data_with_tooltips(e.as_assignment()) for e in entries
-        )
 
     def _render_log_timeline(self, entries) -> str:
         given_entries, rounds = LogResultProcessor.group_rounds(entries)
@@ -1067,6 +1068,9 @@ class ReportGenerator:
             text-decoration: underline;
         }}
         .data-entry {{
+            display: block;
+            width: 100%;
+            box-sizing: border-box;
             margin-bottom: 8px;
             padding: 10px 12px;
             border: 1px solid #e0e7ff;
@@ -1079,13 +1083,19 @@ class ReportGenerator:
             gap: 12px;
             align-items: flex-start;
             flex-wrap: wrap;
+            width: 100%;
         }}
         .data-entry-info {{
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
-            align-items: center;
+            align-items: baseline;
             font-size: 12px;
+            width: 100%;
+        }}
+        .data-entry-info code {{
+            white-space: pre-wrap;
+            word-break: break-word;
         }}
         .data-toggle-btn {{
             border: none;
